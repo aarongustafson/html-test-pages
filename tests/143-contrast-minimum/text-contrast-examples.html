@@ -1,0 +1,298 @@
+<!DOCTYPE html><html lang="en-us" data-node-key="s1"><head data-node-key="s2"><script data-node-key="s3">(() => {
+    const attributeName = "data-node-key";
+    const scheme = "hierarchical-v1";
+    if (window.__benchmarkNodeKeys?.scheme === scheme) return;
+
+    const source = document.currentScript?.textContent || '';
+    const owners = new Map();
+    const assigned = new WeakMap();
+    const counters = new WeakMap();
+    let rootCounter = 0;
+    let pending = 0;
+
+    const valid = value => /^(?:s[1-9]\d*|d[1-9]\d*)(?:-d[1-9]\d*)*$/.test(value || '');
+    const parentElement = element => {
+        if (element.parentElement) return element.parentElement;
+        const root = element.getRootNode?.();
+        return root instanceof ShadowRoot ? root.host : null;
+    };
+    const nextKey = parent => {
+        if (!parent) return 'd' + (++rootCounter);
+        ensure(parent);
+        const next = (counters.get(parent) || 0) + 1;
+        counters.set(parent, next);
+        return assigned.get(parent) + '-d' + next;
+    };
+    const write = (element, key) => {
+        assigned.set(element, key);
+        owners.set(key, element);
+        if (element.getAttribute(attributeName) !== key) {
+            element.setAttribute(attributeName, key);
+        }
+    };
+    function ensure(element) {
+        const known = assigned.get(element);
+        if (known) {
+            if (element.getAttribute(attributeName) !== known) write(element, known);
+            return known;
+        }
+        const candidate = element.getAttribute(attributeName);
+        const owner = owners.get(candidate);
+        if (valid(candidate) && (!owner || owner === element)) {
+            write(element, candidate);
+            return candidate;
+        }
+        const key = nextKey(parentElement(element));
+        write(element, key);
+        return key;
+    }
+    const visit = root => {
+        if (root instanceof Element) ensure(root);
+        for (const element of root.querySelectorAll?.('*') || []) ensure(element);
+        for (const template of root.querySelectorAll?.('template') || []) {
+            visit(template.content);
+        }
+    };
+    const instrumentFrame = frame => {
+        const install = () => {
+            try {
+                const frameDocument = frame.contentDocument;
+                if (!frameDocument || frame.contentWindow.__benchmarkNodeKeys) return;
+                const script = frameDocument.createElement('script');
+                script.textContent = source;
+                (frameDocument.head || frameDocument.documentElement).prepend(script);
+            } catch {
+                // Cross-origin frames are outside the supported instrumentation scope.
+            }
+        };
+        frame.addEventListener('load', install);
+        queueMicrotask(install);
+    };
+    const observeRoot = root => {
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: [attributeName],
+        });
+        visit(root);
+        for (const frame of root.querySelectorAll?.('iframe') || []) instrumentFrame(frame);
+    };
+    const observer = new MutationObserver(records => {
+        pending += 1;
+        try {
+            for (const record of records) {
+                if (record.type === 'attributes') {
+                    ensure(record.target);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    visit(node);
+                    if (node.matches('iframe')) instrumentFrame(node);
+                    for (const frame of node.querySelectorAll('iframe')) instrumentFrame(frame);
+                }
+            }
+        } finally {
+            pending -= 1;
+        }
+    });
+
+    const originalAttachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+        visit(document);
+        const root = originalAttachShadow.call(this, init);
+        if (init?.mode === 'open') observeRoot(root);
+        return root;
+    };
+
+    let staticCounter = 0;
+    for (const element of document.querySelectorAll('*')) {
+        const existing = element.getAttribute(attributeName);
+        if (valid(existing) && !owners.has(existing)) {
+            write(element, existing);
+        } else if (!existing) {
+            write(element, 's' + (++staticCounter));
+        } else {
+            ensure(element);
+        }
+    }
+    observeRoot(document);
+
+    window.__benchmarkNodeKeys = Object.freeze({
+        scheme,
+        attributeName,
+        keyFor: element => ensure(element),
+        async whenSettled() {
+            do {
+                await Promise.resolve();
+                await new Promise(resolve => setTimeout(resolve, 0));
+            } while (pending);
+        },
+    });
+})();</script>
+        <meta charset="utf-8" data-node-key="s4"><meta name="benchmark-ref" content="2a0e30ced24091df1e48aa894f4da3ee114071b8" data-node-key="s5">
+        <title data-node-key="s6">Examples for content contrast</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-node-key="s7">
+        <link href="../assets/style.css" rel="stylesheet" data-node-key="s8">
+    </head>
+    <body data-node-key="s9">
+        <header data-node-key="s10">
+            <a href="../../" data-node-key="s11">Index of test cases</a>
+        </header>
+        <main data-node-key="s12">
+            <hgroup data-node-key="s13">
+                <h1 data-node-key="s14">Examples for content contrast</h1>
+                
+                
+            </hgroup>
+
+            <section class="tc-block" data-node-key="s15">
+                <h2 data-node-key="s16">Using style=color:... on static text</h2>
+                <div class="a11y-directions" data-node-key="s17"></div>
+                <div class="test-case" data-node-key="s18">
+                    <p style="color: #bbb" data-node-key="s19">
+                        The quick brown fox wasn't that quick. He was actually rather average speed
+                        for a fox.
+                    </p>
+                    <p style="color: #999" data-node-key="s20">
+                        Jack and Jill went up a hill, and they just hung out.
+                    </p>
+
+                    <p style="color: rgb(144, 144, 144)" data-node-key="s21">
+                        Almost, but not quite there...
+                    </p>
+                    <p style="color: rgb(120, 120, 120)" data-node-key="s22">
+                        Ridiculously close to the point of only being a technical failure...
+                    </p>
+                    <p style="color: #7070ff" data-node-key="s23">
+                        Feeling sort of blue
+                    </p>
+                    <div style="color: #9b8e78" data-node-key="s24">
+                        tannish
+                    </div>
+                    <p data-node-key="s25">
+                        <span style="color: #ffa200" data-node-key="s26">orange you glad?</span>
+                    </p>
+                    <div data-node-key="s27">
+                        <p data-node-key="s28">
+                            <span style="color: #d2d973" data-node-key="s29">D2 D9 73</span>
+                        </p>
+                    </div>
+                </div>
+                
+            </section>
+
+            <section class="tc-block" data-node-key="s30">
+                <h2 data-node-key="s31">Opacity lowering contrast</h2>
+                <div class="a11y-directions" data-node-key="s32"></div>
+                <div class="test-case" data-node-key="s33">
+                    <p class="o4" data-node-key="s34">
+                        The quick brown fox wasn't that quick. He was actually rather average speed
+                        for a fox.
+                    </p>
+                    <div style="background: black" data-node-key="s35">
+                        <p class="wo" data-node-key="s36">
+                            I have things to say and stuff to do. But I shan't do either.
+                        </p>
+                    </div>
+                    <style data-node-key="s37">
+                        .wo {
+                            opacity: 0.5;
+                            color: #eee;
+                        }
+                        .o4 {
+                            opacity: 0.4;
+                        }
+                    </style>
+                </div>
+                
+            </section>
+
+            <section class="tc-block" data-node-key="s38">
+                <h2 data-node-key="s39">Poor contrast on hover/focus</h2>
+                <div class="a11y-directions" data-node-key="s40"></div>
+                <div class="test-case" data-node-key="s41">
+                    <p data-node-key="s42">
+                        An
+                        <a href="https://example.com" class="chf" data-node-key="s43">example.com</a>
+                        hyperlink.
+                    </p>
+                    <p data-node-key="s44">
+                        Another hyperlink to go to
+                        <a href="https://bing.com" class="chf2" data-node-key="s45">bing.com</a>.
+                    </p>
+                    <div data-node-key="s46">
+                        <button class="btn-f1" id="b1" data-node-key="s47">
+                            B1: test
+                        </button>
+                    </div>
+                    <div data-node-key="s48">
+                        <button class="btn-f2" id="b2" data-node-key="s49">
+                            B2: test
+                        </button>
+                    </div>
+                    <div data-node-key="s50">
+                        <button class="btn-f3" id="b3" data-node-key="s51">
+                            B3: test
+                        </button>
+                    </div>
+                    <output id="o" data-node-key="s52"></output>
+
+                    <style data-node-key="s53">
+                        .chf:hover,
+                        .chf:focus-visible {
+                            color: lightblue;
+                        }
+                        .chf2:hover,
+                        .chf2:focus-visible {
+                            background: darkblue;
+                            color: #888;
+                        }
+                        .btn-f1,
+                        .btn-f2,
+                        .btn-f3 {
+                            padding: 0.5em;
+                            background: white;
+                            margin: 0.124em;
+                        }
+                        .btn-f1:hover,
+                        .btn-f2:hover,
+                        .btn-f3:hover {
+                            background: #0a0a0a;
+                            color: #555;
+                        }
+                        .btn-f1:focus-visible {
+                            color: #e0e0e0;
+                        }
+                        .btn-f2:focus-visible {
+                            color: #ffe066;
+                        }
+                        .btn-f3:focus-visible {
+                            color: #b6fcb6;
+                        }
+                    </style>
+                    <script data-node-key="s54">
+                        const b1 = document.getElementById('b1');
+                        const b2 = document.getElementById('b2');
+                        const b3 = document.getElementById('b3');
+                        const o = document.getElementById('o');
+
+                        b1.addEventListener('click', () => {
+                            o.textContent = 'b1 was activated';
+                        });
+                        b2.addEventListener('click', () => {
+                            o.textContent = 'b2 was activated';
+                        });
+                        b3.addEventListener('click', () => {
+                            o.textContent = 'b3 was activated';
+                        });
+                    </script>
+                </div>
+                
+            </section>
+        </main>
+        <script src="../assets/script.js" data-node-key="s55"></script>
+    
+
+</body></html>

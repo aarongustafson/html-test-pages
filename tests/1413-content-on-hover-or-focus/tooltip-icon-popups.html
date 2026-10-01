@@ -1,0 +1,416 @@
+<!DOCTYPE html><html lang="en-us" data-node-key="s1"><head data-node-key="s2"><script data-node-key="s3">(() => {
+    const attributeName = "data-node-key";
+    const scheme = "hierarchical-v1";
+    if (window.__benchmarkNodeKeys?.scheme === scheme) return;
+
+    const source = document.currentScript?.textContent || '';
+    const owners = new Map();
+    const assigned = new WeakMap();
+    const counters = new WeakMap();
+    let rootCounter = 0;
+    let pending = 0;
+
+    const valid = value => /^(?:s[1-9]\d*|d[1-9]\d*)(?:-d[1-9]\d*)*$/.test(value || '');
+    const parentElement = element => {
+        if (element.parentElement) return element.parentElement;
+        const root = element.getRootNode?.();
+        return root instanceof ShadowRoot ? root.host : null;
+    };
+    const nextKey = parent => {
+        if (!parent) return 'd' + (++rootCounter);
+        ensure(parent);
+        const next = (counters.get(parent) || 0) + 1;
+        counters.set(parent, next);
+        return assigned.get(parent) + '-d' + next;
+    };
+    const write = (element, key) => {
+        assigned.set(element, key);
+        owners.set(key, element);
+        if (element.getAttribute(attributeName) !== key) {
+            element.setAttribute(attributeName, key);
+        }
+    };
+    function ensure(element) {
+        const known = assigned.get(element);
+        if (known) {
+            if (element.getAttribute(attributeName) !== known) write(element, known);
+            return known;
+        }
+        const candidate = element.getAttribute(attributeName);
+        const owner = owners.get(candidate);
+        if (valid(candidate) && (!owner || owner === element)) {
+            write(element, candidate);
+            return candidate;
+        }
+        const key = nextKey(parentElement(element));
+        write(element, key);
+        return key;
+    }
+    const visit = root => {
+        if (root instanceof Element) ensure(root);
+        for (const element of root.querySelectorAll?.('*') || []) ensure(element);
+        for (const template of root.querySelectorAll?.('template') || []) {
+            visit(template.content);
+        }
+    };
+    const instrumentFrame = frame => {
+        const install = () => {
+            try {
+                const frameDocument = frame.contentDocument;
+                if (!frameDocument || frame.contentWindow.__benchmarkNodeKeys) return;
+                const script = frameDocument.createElement('script');
+                script.textContent = source;
+                (frameDocument.head || frameDocument.documentElement).prepend(script);
+            } catch {
+                // Cross-origin frames are outside the supported instrumentation scope.
+            }
+        };
+        frame.addEventListener('load', install);
+        queueMicrotask(install);
+    };
+    const observeRoot = root => {
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: [attributeName],
+        });
+        visit(root);
+        for (const frame of root.querySelectorAll?.('iframe') || []) instrumentFrame(frame);
+    };
+    const observer = new MutationObserver(records => {
+        pending += 1;
+        try {
+            for (const record of records) {
+                if (record.type === 'attributes') {
+                    ensure(record.target);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    visit(node);
+                    if (node.matches('iframe')) instrumentFrame(node);
+                    for (const frame of node.querySelectorAll('iframe')) instrumentFrame(frame);
+                }
+            }
+        } finally {
+            pending -= 1;
+        }
+    });
+
+    const originalAttachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+        visit(document);
+        const root = originalAttachShadow.call(this, init);
+        if (init?.mode === 'open') observeRoot(root);
+        return root;
+    };
+
+    let staticCounter = 0;
+    for (const element of document.querySelectorAll('*')) {
+        const existing = element.getAttribute(attributeName);
+        if (valid(existing) && !owners.has(existing)) {
+            write(element, existing);
+        } else if (!existing) {
+            write(element, 's' + (++staticCounter));
+        } else {
+            ensure(element);
+        }
+    }
+    observeRoot(document);
+
+    window.__benchmarkNodeKeys = Object.freeze({
+        scheme,
+        attributeName,
+        keyFor: element => ensure(element),
+        async whenSettled() {
+            do {
+                await Promise.resolve();
+                await new Promise(resolve => setTimeout(resolve, 0));
+            } while (pending);
+        },
+    });
+})();</script>
+        <meta charset="utf-8" data-node-key="s4"><meta name="benchmark-ref" content="2a0e30ced24091df1e48aa894f4da3ee114071b8" data-node-key="s5">
+        <title data-node-key="s6">Info Icon Tooltips</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-node-key="s7">
+        <link href="../assets/style.css" rel="stylesheet" data-node-key="s8">
+        <style data-node-key="s9">
+            .sr-only {
+                height: 1px;
+                width: 1px;
+                white-space: nowrap;
+                overflow: hidden;
+                position: absolute;
+            }
+            svg {
+                pointer-events: none;
+            }
+            span[data-toggle='tooltip'] {
+                display: inline-block;
+            }
+            span[data-toggle='tooltip']:focus {
+                outline: 2px solid;
+                outline-offset: 2px;
+            }
+            table td,
+            table th {
+                padding: 0.325em;
+            }
+            table {
+                border-spacing: 0;
+                text-align: left;
+                border: 1px solid;
+            }
+            thead th,
+            tr:not(:last-of-type) td {
+                border-bottom: 1px solid;
+            }
+        </style>
+    </head>
+    <body data-node-key="s10">
+        <div hidden="" data-node-key="s11">
+            <svg xmlns="http://www.w3.org/2000/svg" data-node-key="s12">
+                <symbol id="info-regular" viewBox="0 0 24 24" data-node-key="s13">
+                    <path d="M12.0001 1.99902C17.5238 1.99902 22.0016 6.47687 22.0016 12.0006C22.0016 17.5243 17.5238 22.0021 12.0001 22.0021C6.47638 22.0021 1.99854 17.5243 1.99854 12.0006C1.99854 6.47687 6.47638 1.99902 12.0001 1.99902ZM12.0001 3.49902C7.30481 3.49902 3.49854 7.3053 3.49854 12.0006C3.49854 16.6959 7.30481 20.5021 12.0001 20.5021C16.6954 20.5021 20.5016 16.6959 20.5016 12.0006C20.5016 7.3053 16.6954 3.49902 12.0001 3.49902ZM11.9964 10.4996C12.3761 10.4994 12.6901 10.7813 12.74 11.1473L12.7469 11.2491L12.7505 16.7507C12.7508 17.1649 12.4152 17.5009 12.001 17.5012C11.6213 17.5014 11.3073 17.2195 11.2574 16.8535L11.2505 16.7517L11.2469 11.2501C11.2467 10.8359 11.5822 10.4999 11.9964 10.4996ZM12.0005 7.00184C12.5521 7.00184 12.9992 7.44896 12.9992 8.0005C12.9992 8.55205 12.5521 8.99917 12.0005 8.99917C11.449 8.99917 11.0019 8.55205 11.0019 8.0005C11.0019 7.44896 11.449 7.00184 12.0005 7.00184Z" data-node-key="s14"></path>
+                </symbol>
+            </svg>
+        </div>
+        <header data-node-key="s15">
+            <a href="../../" data-node-key="s16">Index of test cases</a>
+        </header>
+        <main data-node-key="s17">
+            <hgroup data-node-key="s18">
+                <h1 data-node-key="s19">Info Icon Tooltips</h1>
+                
+                
+                
+            </hgroup>
+
+            <section class="tc-block" data-node-key="s20">
+                <h2 data-node-key="s21">Tooltips appear on hover/focus of info icons</h2>
+                <div class="a11y-directions" data-node-key="s22"></div>
+                <div class="test-case" data-node-key="s23">
+                    <style data-node-key="s24"></style>
+
+                    <div class="table-wrap" data-node-key="s25">
+                        <table class="table mt-60" data-node-key="s26">
+                            <thead data-node-key="s27">
+                                <tr data-node-key="s28">
+                                    <th scope="col" data-node-key="s29">Event name</th>
+                                    <th scope="col" data-node-key="s30">Start date</th>
+                                    <th scope="col" data-node-key="s31">End date</th>
+                                    <th scope="col" data-node-key="s32">Location</th>
+                                    <th scope="col" data-node-key="s33">Primary language</th>
+                                </tr>
+                            </thead>
+                            <tbody data-node-key="s34">
+                                <tr data-node-key="s35">
+                                    <td data-node-key="s36">
+                                        <a href="https://azuredevsummit.com/" target="_blank" data-node-key="s37">Azure Dev Summit</a>
+                                        <span data-toggle="tooltip" aria-label=" Built for Devs, AI Experts &amp; Tech Leaders. Join the premier European event for developers, architects, and decision-makers working with Azure, .NET, and Microsoft AI.
+
+Azure Dev Summit is the new premier community conference for Microsoft software developers in Europe, initiated and supported by Microsoft. This yearly conference will be a dynamic collaboration between NDC Conferences and Techorama, bringing together some of the most influential voices from Microsoft and the broader developer community." class="tooltip-info" role="tooltip" id="tooltip1" tabindex="0" title="" data-original-title=" Built for Devs, AI Experts &amp; Tech Leaders. Join the premier European event for developers, architects, and decision-makers working with Azure, .NET, and Microsoft AI.
+
+Azure Dev Summit is the new premier community conference for Microsoft software developers in Europe, initiated and supported by Microsoft. This yearly conference will be a dynamic collaboration between NDC Conferences and Techorama, bringing together some of the most influential voices from Microsoft and the broader developer community." data-node-key="s38"><svg width="16" height="16" version="2.0" class="icon-svg" data-node-key="s39">
+                                                <use href="#info-regular" data-node-key="s40"></use>
+                                            </svg>
+                                            <span class="sr-only" data-node-key="s41">Tooltip: Built for Devs, AI Experts &amp; Tech
+                                                Leaders. Join the premier European event for
+                                                developers, architects, and decision-makers working
+                                                with Azure, .NET, and Microsoft AI. Azure Dev Summit
+                                                is the new premier community conference for
+                                                Microsoft software developers in Europe, initiated
+                                                and supported by Microsoft. This yearly conference
+                                                will be a dynamic collaboration between NDC
+                                                Conferences and Techorama, bringing together some of
+                                                the most influential voices from Microsoft and the
+                                                broader developer community.
+                                            </span></span>
+                                    </td>
+                                    <td data-node-key="s42">October 13, 2025</td>
+                                    <td data-node-key="s43">October 16, 2025</td>
+                                    <td data-node-key="s44">Lisbon, Portugal</td>
+                                    <td data-node-key="s45">English (en)</td>
+                                </tr>
+                                <tr data-node-key="s46">
+                                    <td data-node-key="s47">
+                                        <a href="https://ndcporto.com/" target="_blank" data-node-key="s48">NDC Porto</a>
+                                        <span data-toggle="tooltip" aria-label="NDC Porto 2025 will be an in-person event, held 20-24 October 2025 at the Alfandega conference centre in Porto." class="tooltip-info" role="tooltip" id="tooltip2" tabindex="0" title="" data-original-title="NDC Porto 2025 will be an in-person event, held 20-24 October 2025 at the Alfandega conference centre in Porto." data-node-key="s49"><svg width="16" height="16" version="2.0" class="icon-svg" data-node-key="s50">
+                                                <use href="#info-regular" data-node-key="s51"></use></svg><span class="sr-only" data-node-key="s52">Tooltip: NDC Porto 2025 will be an in-person event,
+                                                held 20-24 October 2025 at the Alfandega conference
+                                                centre in Porto.</span></span>
+                                    </td>
+                                    <td data-node-key="s53">October 20, 2025</td>
+                                    <td data-node-key="s54">October 24, 2025</td>
+                                    <td data-node-key="s55">Porto, Portugal</td>
+                                    <td data-node-key="s56">English (en)</td>
+                                </tr>
+                                <tr data-node-key="s57">
+                                    <td data-node-key="s58">
+                                        <a href="https://www.updateconference.net/en" target="_blank" data-node-key="s59">Update Conference Prague 2025</a>
+                                        <span data-toggle="tooltip" aria-label="Update Conference Prague is the biggest .NET developer conference in the Czech Republic. The conference features pre-conference workshops and four parallel tracks with more than 40 technical sessions led by top experts from Europe, USA and other countries. Come to the event and experience two amazing days full of interesting sessions and opportunities to network with speakers and other attendees. You can choose between personal participation at the conference venue or online watching the live-stream of all sessions via the Update Now Portal." class="tooltip-info" role="tooltip" id="tooltip3" tabindex="0" title="" data-original-title="Update Conference Prague is the biggest .NET developer conference in the Czech Republic. The conference features pre-conference workshops and four parallel tracks with more than 40 technical sessions led by top experts from Europe, USA and other countries. Come to the event and experience two amazing days full of interesting sessions and opportunities to network with speakers and other attendees. You can choose between personal participation at the conference venue or online watching the live-stream of all sessions via the Update Now Portal." data-node-key="s60"><svg width="16" height="16" version="2.0" class="icon-svg" data-node-key="s61">
+                                                <use href="#info-regular" data-node-key="s62"></use></svg><span class="sr-only" data-node-key="s63">Tooltip: Update Conference Prague is the biggest
+                                                .NET developer conference in the Czech Republic. The
+                                                conference features pre-conference workshops and
+                                                four parallel tracks with more than 40 technical
+                                                sessions led by top experts from Europe, USA and
+                                                other countries. Come to the event and experience
+                                                two amazing days full of interesting sessions and
+                                                opportunities to network with speakers and other
+                                                attendees. You can choose between personal
+                                                participation at the conference venue or online
+                                                watching the live-stream of all sessions via the
+                                                Update Now Portal.</span></span>
+                                    </td>
+                                    <td data-node-key="s64">November 13, 2025</td>
+                                    <td data-node-key="s65">November 14, 2025</td>
+                                    <td data-node-key="s66">Prague, Czech Republic</td>
+                                    <td data-node-key="s67">English (en)</td>
+                                </tr>
+                                <tr data-node-key="s68">
+                                    <td data-node-key="s69">
+                                        <a href="https://live360events.com/events/orlando-2025/home.aspx" target="_blank" data-node-key="s70">LIVE! 360 Tech Con 2025</a>
+                                        <span data-toggle="tooltip" aria-label="Live! 360 Tech Con returns to Universal Orlando November 16-21, 2025. Live! 360 is a unique conference offering you 6 co-located events for one great price, including Visual Studio Live!, TechMentor, Artificial Intelligence Live!, Data Platform Live!, Cloud &amp; Containers Live!, and Cybersecurity &amp; Ransomware Live! Stay ahead of the current trends and advance your career at Live! 360, the Ultimate Education Destination." class="tooltip-info" role="tooltip" id="tooltip4" tabindex="0" title="" data-original-title="Live! 360 Tech Con returns to Universal Orlando November 16-21, 2025. Live! 360 is a unique conference offering you 6 co-located events for one great price, including Visual Studio Live!, TechMentor, Artificial Intelligence Live!, Data Platform Live!, Cloud &amp; Containers Live!, and Cybersecurity &amp; Ransomware Live! Stay ahead of the current trends and advance your career at Live! 360, the Ultimate Education Destination." data-node-key="s71"><svg width="16" height="16" version="2.0" class="icon-svg" data-node-key="s72">
+                                                <use href="#info-regular" data-node-key="s73"></use></svg><span class="sr-only" data-node-key="s74">Tooltip: Live! 360 Tech Con returns to Universal
+                                                Orlando November 16-21, 2025. Live! 360 is a unique
+                                                conference offering you 6 co-located events for one
+                                                great price, including Visual Studio Live!,
+                                                TechMentor, Artificial Intelligence Live!, Data
+                                                Platform Live!, Cloud &amp; Containers Live!, and
+                                                Cybersecurity &amp; Ransomware Live! Stay ahead of
+                                                the current trends and advance your career at Live!
+                                                360, the Ultimate Education Destination.</span></span>
+                                    </td>
+                                    <td data-node-key="s75">November 16, 2025</td>
+                                    <td data-node-key="s76">November 21, 2025</td>
+                                    <td data-node-key="s77">Orlando, United States</td>
+                                    <td data-node-key="s78">English (en)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+            </section>
+        </main>
+        <script data-node-key="s79">
+            document.addEventListener('DOMContentLoaded', function () {
+                let activeTooltip = null;
+
+                // Create tooltip element
+                function createTooltip(content) {
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'custom-tooltip';
+                    tooltip.textContent = content;
+                    tooltip.style.cssText = `
+                        position: absolute;
+                        background: #323130;
+                        color: white;
+                        padding: 12px 16px;
+                        border-radius: 2px;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        max-width: 320px;
+                        z-index: 1050;
+                        box-shadow: 0 6.4px 14.4px 0 rgba(0,0,0,0.132);
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    `;
+                    document.body.appendChild(tooltip);
+                    return tooltip;
+                }
+
+                // Position tooltip
+                function positionTooltip(tooltip, trigger) {
+                    const triggerRect = trigger.getBoundingClientRect();
+                    const tooltipRect = tooltip.getBoundingClientRect();
+
+                    let left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+                    let top = triggerRect.top - tooltipRect.height - 8;
+
+                    // Keep within viewport
+                    if (left < 8) left = 8;
+                    if (left + tooltipRect.width > window.innerWidth - 8) {
+                        left = window.innerWidth - tooltipRect.width - 8;
+                    }
+                    if (top < 8) {
+                        top = triggerRect.bottom + 8;
+                    }
+
+                    tooltip.style.left = left + window.scrollX + 'px';
+                    tooltip.style.top = top + window.scrollY + 'px';
+                }
+
+                // Show tooltip
+                function showTooltip(trigger) {
+                    const content =
+                        trigger.getAttribute('data-original-title') ||
+                        trigger.getAttribute('aria-label') ||
+                        '';
+
+                    if (!content) return;
+
+                    // Remove any existing tooltip
+                    if (activeTooltip) {
+                        activeTooltip.remove();
+                    }
+
+                    activeTooltip = createTooltip(content);
+                    positionTooltip(activeTooltip, trigger);
+                }
+
+                // Hide tooltip
+                function hideTooltip() {
+                    if (activeTooltip) {
+                        activeTooltip.remove();
+                        activeTooltip = null;
+                    }
+                }
+
+                // Add event listeners
+                document.querySelectorAll('[data-toggle="tooltip"]').forEach((trigger) => {
+                    // Show on hover and focus
+                    trigger.addEventListener('mouseenter', () => showTooltip(trigger));
+                    trigger.addEventListener('focus', () => showTooltip(trigger));
+
+                    // Hide on mouse leave ONLY if not focused
+                    trigger.addEventListener('mouseleave', () => {
+                        if (document.activeElement !== trigger) {
+                            hideTooltip();
+                        }
+                    });
+
+                    // Hide on blur
+                    trigger.addEventListener('blur', () => hideTooltip());
+
+                    // Remove title to prevent browser tooltip
+                    if (trigger.hasAttribute('title')) {
+                        trigger.setAttribute('data-original-title', trigger.getAttribute('title'));
+                        trigger.removeAttribute('title');
+                    }
+                });
+
+                // Hide on escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        hideTooltip();
+                    }
+                });
+
+                // Hide when clicking outside (but only if no trigger is focused)
+                document.addEventListener('click', (e) => {
+                    if (
+                        !e.target.closest('[data-toggle="tooltip"]') &&
+                        (!document.activeElement ||
+                            !document.activeElement.hasAttribute('data-toggle'))
+                    ) {
+                        hideTooltip();
+                    }
+                });
+            });
+        </script>
+        <script src="../assets/script.js" data-node-key="s80"></script>
+    
+
+</body></html>

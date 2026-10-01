@@ -1,0 +1,679 @@
+<!DOCTYPE html><html lang="en-us" data-node-key="s1"><head data-node-key="s2"><script data-node-key="s3">(() => {
+    const attributeName = "data-node-key";
+    const scheme = "hierarchical-v1";
+    if (window.__benchmarkNodeKeys?.scheme === scheme) return;
+
+    const source = document.currentScript?.textContent || '';
+    const owners = new Map();
+    const assigned = new WeakMap();
+    const counters = new WeakMap();
+    let rootCounter = 0;
+    let pending = 0;
+
+    const valid = value => /^(?:s[1-9]\d*|d[1-9]\d*)(?:-d[1-9]\d*)*$/.test(value || '');
+    const parentElement = element => {
+        if (element.parentElement) return element.parentElement;
+        const root = element.getRootNode?.();
+        return root instanceof ShadowRoot ? root.host : null;
+    };
+    const nextKey = parent => {
+        if (!parent) return 'd' + (++rootCounter);
+        ensure(parent);
+        const next = (counters.get(parent) || 0) + 1;
+        counters.set(parent, next);
+        return assigned.get(parent) + '-d' + next;
+    };
+    const write = (element, key) => {
+        assigned.set(element, key);
+        owners.set(key, element);
+        if (element.getAttribute(attributeName) !== key) {
+            element.setAttribute(attributeName, key);
+        }
+    };
+    function ensure(element) {
+        const known = assigned.get(element);
+        if (known) {
+            if (element.getAttribute(attributeName) !== known) write(element, known);
+            return known;
+        }
+        const candidate = element.getAttribute(attributeName);
+        const owner = owners.get(candidate);
+        if (valid(candidate) && (!owner || owner === element)) {
+            write(element, candidate);
+            return candidate;
+        }
+        const key = nextKey(parentElement(element));
+        write(element, key);
+        return key;
+    }
+    const visit = root => {
+        if (root instanceof Element) ensure(root);
+        for (const element of root.querySelectorAll?.('*') || []) ensure(element);
+        for (const template of root.querySelectorAll?.('template') || []) {
+            visit(template.content);
+        }
+    };
+    const instrumentFrame = frame => {
+        const install = () => {
+            try {
+                const frameDocument = frame.contentDocument;
+                if (!frameDocument || frame.contentWindow.__benchmarkNodeKeys) return;
+                const script = frameDocument.createElement('script');
+                script.textContent = source;
+                (frameDocument.head || frameDocument.documentElement).prepend(script);
+            } catch {
+                // Cross-origin frames are outside the supported instrumentation scope.
+            }
+        };
+        frame.addEventListener('load', install);
+        queueMicrotask(install);
+    };
+    const observeRoot = root => {
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: [attributeName],
+        });
+        visit(root);
+        for (const frame of root.querySelectorAll?.('iframe') || []) instrumentFrame(frame);
+    };
+    const observer = new MutationObserver(records => {
+        pending += 1;
+        try {
+            for (const record of records) {
+                if (record.type === 'attributes') {
+                    ensure(record.target);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    visit(node);
+                    if (node.matches('iframe')) instrumentFrame(node);
+                    for (const frame of node.querySelectorAll('iframe')) instrumentFrame(frame);
+                }
+            }
+        } finally {
+            pending -= 1;
+        }
+    });
+
+    const originalAttachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+        visit(document);
+        const root = originalAttachShadow.call(this, init);
+        if (init?.mode === 'open') observeRoot(root);
+        return root;
+    };
+
+    let staticCounter = 0;
+    for (const element of document.querySelectorAll('*')) {
+        const existing = element.getAttribute(attributeName);
+        if (valid(existing) && !owners.has(existing)) {
+            write(element, existing);
+        } else if (!existing) {
+            write(element, 's' + (++staticCounter));
+        } else {
+            ensure(element);
+        }
+    }
+    observeRoot(document);
+
+    window.__benchmarkNodeKeys = Object.freeze({
+        scheme,
+        attributeName,
+        keyFor: element => ensure(element),
+        async whenSettled() {
+            do {
+                await Promise.resolve();
+                await new Promise(resolve => setTimeout(resolve, 0));
+            } while (pending);
+        },
+    });
+})();</script>
+        <meta charset="utf-8" data-node-key="s4"><meta name="benchmark-ref" content="2a0e30ced24091df1e48aa894f4da3ee114071b8" data-node-key="s5">
+        <title data-node-key="s6">Keyboard and dragging</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-node-key="s7">
+        <link href="../assets/style.css" rel="stylesheet" data-node-key="s8">
+        <style data-node-key="s9">
+            .darkmode [role='grid'] {
+                background: black;
+                color: white;
+            }
+
+            .grid-container {
+                overflow: auto;
+                margin: 1em 0;
+            }
+
+            .landmarks-grid {
+                min-width: 600px;
+                border: 2px solid #333;
+                display: table;
+                background: white;
+                width: 100%;
+            }
+
+            .grid-row {
+                display: table-row;
+            }
+
+            .grid-header {
+                display: table-cell;
+                border: 1px solid #ccc;
+                padding: 8px;
+                background: #f0f0f0;
+                font-weight: bold;
+                cursor: grab;
+                user-select: none;
+            }
+
+            .grid-header:active {
+                cursor: grabbing;
+            }
+
+            .grid-header.dragging {
+                opacity: 0.7;
+                background: #e0e0ff;
+            }
+
+            .drag-ghost {
+                position: fixed;
+                pointer-events: none;
+                z-index: 1000;
+                background: #f0f0f0;
+                border: 2px solid #0066cc;
+                padding: 8px;
+                font-weight: bold;
+                transform: rotate(3deg);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            }
+
+            .drop-indicator {
+                background: #e0e0ff !important;
+                border-left: 4px solid #0066cc !important;
+            }
+
+            .grid-cell {
+                display: table-cell;
+                border: 1px solid #ccc;
+                padding: 8px;
+                background: white;
+            }
+
+            .darkmode .landmarks-grid {
+                background: #222;
+                border-color: #666;
+            }
+
+            .darkmode .grid-header {
+                background: #444;
+                color: white;
+                border-color: #666;
+            }
+
+            .darkmode .grid-cell {
+                background: #333;
+                color: white;
+                border-color: #666;
+            }
+
+            #output:not(:empty) {
+                padding: 1em;
+            }
+        </style>
+    </head>
+    <body data-node-key="s10">
+        <header data-node-key="s11">
+            <a href="../../" data-node-key="s12">Index of test cases</a>
+        </header>
+        <main data-node-key="s13">
+            <hgroup data-node-key="s14">
+                <h1 data-node-key="s15">Keyboard and dragging</h1>
+                
+                
+            </hgroup>
+
+            <section class="tc-block" data-node-key="s16">
+                <h2 data-node-key="s17">ARIA Grid with Focus Issues</h2>
+                <div class="a11y-directions" data-node-key="s18"></div>
+                <div class="test-case" data-node-key="s19">
+                    <a href="https://www.bing.com" data-node-key="s20">bing.com</a>
+
+                    <div class="grid-container" data-node-key="s21">
+                        <div role="grid" aria-label="Historical Landmarks Visitor Data" id="landmarks-grid" tabindex="0" class="landmarks-grid" data-node-key="s22">
+                            <div role="row" class="grid-row" data-node-key="s23">
+                                <div role="columnheader" class="grid-header" data-node-key="s24">
+                                    Landmark
+                                </div>
+                                <div role="columnheader" class="grid-header" data-node-key="s25">
+                                    Distance (miles)
+                                </div>
+                                <div role="columnheader" class="grid-header" data-node-key="s26">
+                                    2022 Visitors
+                                </div>
+                                <div role="columnheader" class="grid-header" data-node-key="s27">
+                                    2023 Visitors
+                                </div>
+                            </div>
+                            <div role="row" class="grid-row" data-node-key="s28">
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s29">
+                                    Statue of Liberty
+                                </div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s30">0</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s31">4.2M</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s32">4.5M</div>
+                            </div>
+                            <div role="row" class="grid-row" data-node-key="s33">
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s34">
+                                    Grand Canyon
+                                </div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s35">2,089</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s36">5.9M</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s37">6.2M</div>
+                            </div>
+                            <div role="row" class="grid-row" data-node-key="s38">
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s39">
+                                    Mount Rushmore
+                                </div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s40">1,647</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s41">2.1M</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s42">2.3M</div>
+                            </div>
+                            <div role="row" class="grid-row" data-node-key="s43">
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s44">
+                                    Golden Gate Bridge
+                                </div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s45">2,906</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s46">15M</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s47">16M</div>
+                            </div>
+                            <div role="row" class="grid-row" data-node-key="s48">
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s49">
+                                    Yellowstone
+                                </div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s50">1,982</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s51">3.8M</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s52">4.1M</div>
+                            </div>
+                            <div role="row" class="grid-row" data-node-key="s53">
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s54">
+                                    Independence Hall
+                                </div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s55">95</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s56">700K</div>
+                                <div role="gridcell" tabindex="-1" class="grid-cell" data-node-key="s57">750K</div>
+                            </div>
+                        </div>
+
+                        <p data-node-key="s58">
+                            <button type="button" id="open-dialog-btn" data-node-key="s59">Open Settings Dialog</button>
+                        </p>
+                    </div>
+
+                    <dialog id="settings-dialog" data-node-key="s60">
+                        <form method="dialog" data-node-key="s61">
+                            <h3 data-node-key="s62">Settings</h3>
+                            <p data-node-key="s63">
+                                To reorder grid columns, use the Ctrl + left or right arrow keys
+                                when focused within a cell in a column.
+                            </p>
+                            <fieldset data-node-key="s64">
+                                <legend data-node-key="s65">Theme</legend>
+                                <label data-node-key="s66"><input type="radio" name="theme" value="light" checked="" data-node-key="s67"> Light
+                                    Mode</label>
+                                <label data-node-key="s68"><input type="radio" name="theme" value="dark" data-node-key="s69"> Dark
+                                    Mode</label>
+                            </fieldset>
+                            <button type="submit" data-node-key="s70">Close</button>
+                        </form>
+                    </dialog>
+
+                    <script data-node-key="s71">
+                        // Grid focus manipulation - creates accessibility failure
+                        const bingLink = document.querySelector('a[href="https://www.bing.com"]');
+                        const openDialogBtn = document.getElementById('open-dialog-btn');
+                        const landmarksGrid = document.getElementById('landmarks-grid');
+                        const settingsDialog = document.getElementById('settings-dialog');
+                        const themeRadios = document.querySelectorAll('input[name="theme"]');
+
+                        // Open dialog functionality
+                        openDialogBtn.addEventListener('click', function () {
+                            settingsDialog.showModal();
+                        });
+
+                        // Theme toggle functionality
+                        themeRadios.forEach((radio) => {
+                            radio.addEventListener('change', function () {
+                                if (this.value === 'dark') {
+                                    landmarksGrid.classList.add('darkmode');
+                                } else {
+                                    landmarksGrid.classList.remove('darkmode');
+                                }
+                            });
+                        });
+
+                        // When tabbing from bing.com link, skip over the entire grid to the dialog button
+                        bingLink.addEventListener('keydown', function (event) {
+                            if (event.key === 'Tab' && !event.shiftKey) {
+                                event.preventDefault();
+                                openDialogBtn.focus();
+                            }
+                        });
+
+                        // When shift+tabbing from dialog button, skip back over the grid to bing.com link
+                        openDialogBtn.addEventListener('keydown', function (event) {
+                            if (event.key === 'Tab' && event.shiftKey) {
+                                event.preventDefault();
+                                bingLink.focus();
+                            }
+                        });
+
+                        let currentFocusedCell = null;
+
+                        // Grid container focus handler
+                        landmarksGrid.addEventListener('focus', function () {
+                            // When grid gets focus, move to first cell if no cell is focused
+                            if (!currentFocusedCell) {
+                                const firstCell = landmarksGrid.querySelector('[role="gridcell"]');
+                                if (firstCell) {
+                                    firstCell.setAttribute('tabindex', '0');
+                                    firstCell.focus();
+                                    currentFocusedCell = firstCell;
+                                }
+                            } else {
+                                currentFocusedCell.focus();
+                            }
+                        });
+
+                        // Grid navigation - arrow keys within the grid
+                        landmarksGrid.addEventListener('keydown', function (event) {
+                            const activeElement = document.activeElement;
+
+                            // Handle focus on grid container
+                            if (activeElement === landmarksGrid) {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    const firstCell =
+                                        landmarksGrid.querySelector('[role="gridcell"]');
+                                    if (firstCell) {
+                                        landmarksGrid.setAttribute('tabindex', '-1');
+                                        firstCell.setAttribute('tabindex', '0');
+                                        firstCell.focus();
+                                        currentFocusedCell = firstCell;
+                                    }
+                                }
+                                return;
+                            }
+
+                            // Handle navigation within grid cells
+                            if (!activeElement.matches('[role="gridcell"]')) return;
+
+                            const allCells = Array.from(
+                                landmarksGrid.querySelectorAll('[role="gridcell"]'),
+                            );
+                            const currentIndex = allCells.indexOf(activeElement);
+                            const columns = 4;
+                            let targetIndex = -1;
+
+                            // Handle column reordering with Ctrl+Left/Right
+                            if (
+                                event.ctrlKey &&
+                                (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+                            ) {
+                                event.preventDefault();
+
+                                const currentColumn = currentIndex % columns;
+                                const currentRow = Math.floor(currentIndex / columns);
+
+                                // Determine target column
+                                let targetColumn;
+                                if (event.key === 'ArrowLeft') {
+                                    if (currentColumn === 0) return; // Can't move left from first column
+                                    targetColumn = currentColumn - 1;
+                                } else {
+                                    // ArrowRight
+                                    if (currentColumn === columns - 1) return; // Can't move right from last column
+                                    targetColumn = currentColumn + 1;
+                                }
+
+                                // Move the column
+                                swapColumns(currentColumn, targetColumn);
+
+                                // Update focus to follow the moved column
+                                const newCellIndex = currentRow * columns + targetColumn;
+                                const allCells = Array.from(
+                                    landmarksGrid.querySelectorAll('[role="gridcell"]'),
+                                );
+                                const newCell = allCells[newCellIndex];
+
+                                if (newCell) {
+                                    activeElement.setAttribute('tabindex', '-1');
+                                    newCell.setAttribute('tabindex', '0');
+                                    newCell.focus();
+                                    currentFocusedCell = newCell;
+                                }
+                                return;
+                            }
+
+                            switch (event.key) {
+                                case 'ArrowRight':
+                                    targetIndex = currentIndex + 1;
+                                    if (targetIndex % columns === 0) targetIndex = currentIndex; // Stay in row
+                                    break;
+                                case 'ArrowLeft':
+                                    targetIndex = currentIndex - 1;
+                                    if (targetIndex < 0 || currentIndex % columns === 0)
+                                        targetIndex = currentIndex; // Stay in row
+                                    break;
+                                case 'ArrowDown':
+                                    targetIndex = currentIndex + columns;
+                                    break;
+                                case 'ArrowUp':
+                                    targetIndex = currentIndex - columns;
+                                    break;
+                                case 'Home':
+                                    targetIndex = Math.floor(currentIndex / columns) * columns; // First cell in row
+                                    break;
+                                case 'End':
+                                    targetIndex =
+                                        Math.floor(currentIndex / columns) * columns + columns - 1; // Last cell in row
+                                    break;
+                                case 'Tab':
+                                    // Allow tab to exit the grid
+                                    activeElement.setAttribute('tabindex', '-1');
+                                    landmarksGrid.setAttribute('tabindex', '0');
+                                    currentFocusedCell = activeElement;
+                                    return; // Don't prevent default, let tab work normally
+                                default:
+                                    return;
+                            }
+
+                            if (targetIndex >= 0 && targetIndex < allCells.length) {
+                                event.preventDefault();
+                                // Update tabindex
+                                activeElement.setAttribute('tabindex', '-1');
+                                allCells[targetIndex].setAttribute('tabindex', '0');
+                                allCells[targetIndex].focus();
+                                currentFocusedCell = allCells[targetIndex];
+                            }
+                        });
+
+                        // Simple column swapping function
+                        function swapColumns(col1, col2) {
+                            const rows = landmarksGrid.querySelectorAll('[role="row"]');
+
+                            rows.forEach((row) => {
+                                const cells = Array.from(row.children);
+                                const cell1 = cells[col1];
+                                const cell2 = cells[col2];
+
+                                // Simple swap: insert cell1 before cell2, then cell2 before cell1's original position
+                                const temp = document.createElement('div');
+                                row.insertBefore(temp, cell1);
+                                row.insertBefore(cell1, cell2);
+                                row.insertBefore(cell2, temp);
+                                row.removeChild(temp);
+                            });
+                        }
+
+                        // Drag and drop functionality
+                        let isDragging = false;
+                        let draggedColumn = null;
+                        let draggedColumnIndex = -1;
+                        let dragGhost = null;
+
+                        // Initialize drag and drop
+                        function initializeDragAndDrop() {
+                            const columnHeaders =
+                                landmarksGrid.querySelectorAll('[role="columnheader"]');
+
+                            columnHeaders.forEach((header, index) => {
+                                header.addEventListener('mousedown', handleMouseDown);
+                            });
+                        }
+
+                        function handleMouseDown(e) {
+                            if (e.button !== 0) return; // Only left mouse button
+
+                            const header = e.currentTarget;
+                            const headerIndex = Array.from(
+                                landmarksGrid.querySelectorAll('[role="columnheader"]'),
+                            ).indexOf(header);
+
+                            isDragging = true;
+                            draggedColumn = header;
+                            draggedColumnIndex = headerIndex;
+
+                            // Create drag ghost
+                            dragGhost = document.createElement('div');
+                            dragGhost.className = 'drag-ghost';
+                            dragGhost.textContent = header.textContent;
+                            document.body.appendChild(dragGhost);
+
+                            // Style the original header
+                            header.classList.add('dragging');
+
+                            // Position ghost at mouse
+                            updateGhostPosition(e);
+
+                            // Add document listeners
+                            document.addEventListener('mousemove', handleMouseMove);
+                            document.addEventListener('mouseup', handleMouseUp);
+
+                            e.preventDefault();
+                        }
+
+                        function handleMouseMove(e) {
+                            if (!isDragging) return;
+
+                            updateGhostPosition(e);
+
+                            // Find which column we're over
+                            const columnHeaders =
+                                landmarksGrid.querySelectorAll('[role="columnheader"]');
+                            let targetHeader = null;
+
+                            columnHeaders.forEach((header) => {
+                                const rect = header.getBoundingClientRect();
+                                if (e.clientX >= rect.left && e.clientX <= rect.right) {
+                                    targetHeader = header;
+                                }
+                            });
+
+                            // Update drop indicators
+                            columnHeaders.forEach((header) => {
+                                header.classList.remove('drop-indicator');
+                            });
+
+                            if (targetHeader && targetHeader !== draggedColumn) {
+                                targetHeader.classList.add('drop-indicator');
+                            }
+                        }
+
+                        function handleMouseUp(e) {
+                            if (!isDragging) return;
+
+                            // Find target column
+                            const columnHeaders =
+                                landmarksGrid.querySelectorAll('[role="columnheader"]');
+                            let targetIndex = -1;
+
+                            columnHeaders.forEach((header, index) => {
+                                const rect = header.getBoundingClientRect();
+                                if (e.clientX >= rect.left && e.clientX <= rect.right) {
+                                    targetIndex = index;
+                                }
+                            });
+
+                            // If dropped outside grid, find closest edge
+                            if (targetIndex === -1) {
+                                const gridRect = landmarksGrid.getBoundingClientRect();
+                                if (e.clientX < gridRect.left) {
+                                    targetIndex = 0;
+                                } else if (e.clientX > gridRect.right) {
+                                    targetIndex = columnHeaders.length - 1;
+                                }
+                            }
+
+                            // Perform the swap if we have a valid target
+                            if (targetIndex !== -1 && targetIndex !== draggedColumnIndex) {
+                                // Use the same swapping function as keyboard
+                                swapColumns(draggedColumnIndex, targetIndex);
+                            }
+
+                            // Cleanup
+                            cleanup();
+                        }
+
+                        function updateGhostPosition(e) {
+                            if (dragGhost) {
+                                dragGhost.style.left = e.clientX + 10 + 'px';
+                                dragGhost.style.top = e.clientY - 20 + 'px';
+                            }
+                        }
+
+                        function cleanup() {
+                            isDragging = false;
+
+                            // Remove ghost
+                            if (dragGhost) {
+                                document.body.removeChild(dragGhost);
+                                dragGhost = null;
+                            }
+
+                            // Remove styling
+                            if (draggedColumn) {
+                                draggedColumn.classList.remove('dragging');
+                                draggedColumn = null;
+                            }
+
+                            // Remove indicators
+                            const columnHeaders =
+                                landmarksGrid.querySelectorAll('[role="columnheader"]');
+                            columnHeaders.forEach((header) => {
+                                header.classList.remove('drop-indicator');
+                            });
+
+                            // Remove document listeners
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+
+                            draggedColumnIndex = -1;
+                        }
+
+                        // Initialize drag and drop
+                        initializeDragAndDrop();
+
+                        // Initialize drag and drop when the page loads
+                        // Drag and drop functionality removed - not working properly
+                    </script>
+                </div>
+
+                
+            </section>
+        </main>
+        <script src="../assets/script.js" data-node-key="s72"></script>
+    
+
+</body></html>

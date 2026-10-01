@@ -1,0 +1,214 @@
+<!DOCTYPE html><html lang="en-us" data-node-key="s1"><head data-node-key="s2"><script data-node-key="s3">(() => {
+    const attributeName = "data-node-key";
+    const scheme = "hierarchical-v1";
+    if (window.__benchmarkNodeKeys?.scheme === scheme) return;
+
+    const source = document.currentScript?.textContent || '';
+    const owners = new Map();
+    const assigned = new WeakMap();
+    const counters = new WeakMap();
+    let rootCounter = 0;
+    let pending = 0;
+
+    const valid = value => /^(?:s[1-9]\d*|d[1-9]\d*)(?:-d[1-9]\d*)*$/.test(value || '');
+    const parentElement = element => {
+        if (element.parentElement) return element.parentElement;
+        const root = element.getRootNode?.();
+        return root instanceof ShadowRoot ? root.host : null;
+    };
+    const nextKey = parent => {
+        if (!parent) return 'd' + (++rootCounter);
+        ensure(parent);
+        const next = (counters.get(parent) || 0) + 1;
+        counters.set(parent, next);
+        return assigned.get(parent) + '-d' + next;
+    };
+    const write = (element, key) => {
+        assigned.set(element, key);
+        owners.set(key, element);
+        if (element.getAttribute(attributeName) !== key) {
+            element.setAttribute(attributeName, key);
+        }
+    };
+    function ensure(element) {
+        const known = assigned.get(element);
+        if (known) {
+            if (element.getAttribute(attributeName) !== known) write(element, known);
+            return known;
+        }
+        const candidate = element.getAttribute(attributeName);
+        const owner = owners.get(candidate);
+        if (valid(candidate) && (!owner || owner === element)) {
+            write(element, candidate);
+            return candidate;
+        }
+        const key = nextKey(parentElement(element));
+        write(element, key);
+        return key;
+    }
+    const visit = root => {
+        if (root instanceof Element) ensure(root);
+        for (const element of root.querySelectorAll?.('*') || []) ensure(element);
+        for (const template of root.querySelectorAll?.('template') || []) {
+            visit(template.content);
+        }
+    };
+    const instrumentFrame = frame => {
+        const install = () => {
+            try {
+                const frameDocument = frame.contentDocument;
+                if (!frameDocument || frame.contentWindow.__benchmarkNodeKeys) return;
+                const script = frameDocument.createElement('script');
+                script.textContent = source;
+                (frameDocument.head || frameDocument.documentElement).prepend(script);
+            } catch {
+                // Cross-origin frames are outside the supported instrumentation scope.
+            }
+        };
+        frame.addEventListener('load', install);
+        queueMicrotask(install);
+    };
+    const observeRoot = root => {
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: [attributeName],
+        });
+        visit(root);
+        for (const frame of root.querySelectorAll?.('iframe') || []) instrumentFrame(frame);
+    };
+    const observer = new MutationObserver(records => {
+        pending += 1;
+        try {
+            for (const record of records) {
+                if (record.type === 'attributes') {
+                    ensure(record.target);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    visit(node);
+                    if (node.matches('iframe')) instrumentFrame(node);
+                    for (const frame of node.querySelectorAll('iframe')) instrumentFrame(frame);
+                }
+            }
+        } finally {
+            pending -= 1;
+        }
+    });
+
+    const originalAttachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+        visit(document);
+        const root = originalAttachShadow.call(this, init);
+        if (init?.mode === 'open') observeRoot(root);
+        return root;
+    };
+
+    let staticCounter = 0;
+    for (const element of document.querySelectorAll('*')) {
+        const existing = element.getAttribute(attributeName);
+        if (valid(existing) && !owners.has(existing)) {
+            write(element, existing);
+        } else if (!existing) {
+            write(element, 's' + (++staticCounter));
+        } else {
+            ensure(element);
+        }
+    }
+    observeRoot(document);
+
+    window.__benchmarkNodeKeys = Object.freeze({
+        scheme,
+        attributeName,
+        keyFor: element => ensure(element),
+        async whenSettled() {
+            do {
+                await Promise.resolve();
+                await new Promise(resolve => setTimeout(resolve, 0));
+            } while (pending);
+        },
+    });
+})();</script>
+        <meta charset="utf-8" data-node-key="s4"><meta name="benchmark-ref" content="2a0e30ced24091df1e48aa894f4da3ee114071b8" data-node-key="s5">
+        <title data-node-key="s6">Dialog examples</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-node-key="s7">
+        <link href="../assets/style.css" rel="stylesheet" data-node-key="s8">
+    </head>
+    <body data-node-key="s9">
+        <header data-node-key="s10">
+            <a href="../../" data-node-key="s11">Index of test cases</a>
+        </header>
+        <main data-node-key="s12">
+            <hgroup data-node-key="s13">
+                <h1 data-node-key="s14">Dialog examples</h1>
+                
+                
+            </hgroup>
+
+            <section class="tc-block" data-node-key="s15">
+                <h2 data-node-key="s16">Native dialog[open]</h2>
+                <div class="a11y-directions" data-node-key="s17"></div>
+                <div class="test-case" data-node-key="s18">
+                    <button id="b" data-node-key="s19">Invoke example</button>
+                    <dialog id="d" data-node-key="s20">
+                        <p data-node-key="s21">
+                            I'd say this is an example of a lightbox... but people haven't called
+                            dialogs that since the early 2000s.
+                        </p>
+                        <form method="dialog" data-node-key="s22">
+                            <button data-node-key="s23">OK</button>
+                        </form>
+                    </dialog>
+                    <script data-node-key="s24">
+                        const b = document.getElementById('b');
+                        const d = document.getElementById('d');
+
+                        b.addEventListener('click', () => {
+                            d.open = true;
+                        });
+                    </script>
+                    <style data-node-key="s25">
+                        #d {
+                            box-shadow: 0 0 1000px 1000px rgba(0, 0, 0, 0.625);
+                        }
+                    </style>
+                </div>
+
+                
+            </section>
+
+            <section class="tc-block" data-node-key="s26">
+                <h2 data-node-key="s27">Popover examples</h2>
+                <div class="a11y-directions" data-node-key="s28"></div>
+                <div class="test-case" data-node-key="s29">
+                    <button popovertarget="d2" id="b2" data-node-key="s30">Invoke popover version 1</button>
+                    <button popovertarget="d3" id="b3" data-node-key="s31">Invoke popover version 2</button>
+
+                    <div popover="" id="d2" role="dialog" data-node-key="s32">
+                        <h2 data-node-key="s33">popover 1</h2>
+                        <p data-node-key="s34">Look ma, no JS! But is it good enough?</p>
+                        <button popovertarget="d2" data-node-key="s35">close</button>
+                    </div>
+
+                    <dialog popover="" id="d3" data-node-key="s36">
+                        <h2 data-node-key="s37">popover 2</h2>
+                        <p data-node-key="s38">Also no JavaScript. At least this is a dialog element.</p>
+                        <button popovertarget="d3" data-node-key="s39">close</button>
+                    </dialog>
+
+                    <style data-node-key="s40">
+                        [popover]::backdrop {
+                            background: rgba(0, 0, 0, 0.75);
+                        }
+                    </style>
+                </div>
+
+                
+            </section>
+        </main>
+        <script src="../assets/script.js" data-node-key="s41"></script>
+    
+
+</body></html>

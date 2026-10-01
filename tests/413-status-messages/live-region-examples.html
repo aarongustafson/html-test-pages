@@ -1,0 +1,546 @@
+<!DOCTYPE html><html lang="en-us" data-node-key="s1"><head data-node-key="s2"><script data-node-key="s3">(() => {
+    const attributeName = "data-node-key";
+    const scheme = "hierarchical-v1";
+    if (window.__benchmarkNodeKeys?.scheme === scheme) return;
+
+    const source = document.currentScript?.textContent || '';
+    const owners = new Map();
+    const assigned = new WeakMap();
+    const counters = new WeakMap();
+    let rootCounter = 0;
+    let pending = 0;
+
+    const valid = value => /^(?:s[1-9]\d*|d[1-9]\d*)(?:-d[1-9]\d*)*$/.test(value || '');
+    const parentElement = element => {
+        if (element.parentElement) return element.parentElement;
+        const root = element.getRootNode?.();
+        return root instanceof ShadowRoot ? root.host : null;
+    };
+    const nextKey = parent => {
+        if (!parent) return 'd' + (++rootCounter);
+        ensure(parent);
+        const next = (counters.get(parent) || 0) + 1;
+        counters.set(parent, next);
+        return assigned.get(parent) + '-d' + next;
+    };
+    const write = (element, key) => {
+        assigned.set(element, key);
+        owners.set(key, element);
+        if (element.getAttribute(attributeName) !== key) {
+            element.setAttribute(attributeName, key);
+        }
+    };
+    function ensure(element) {
+        const known = assigned.get(element);
+        if (known) {
+            if (element.getAttribute(attributeName) !== known) write(element, known);
+            return known;
+        }
+        const candidate = element.getAttribute(attributeName);
+        const owner = owners.get(candidate);
+        if (valid(candidate) && (!owner || owner === element)) {
+            write(element, candidate);
+            return candidate;
+        }
+        const key = nextKey(parentElement(element));
+        write(element, key);
+        return key;
+    }
+    const visit = root => {
+        if (root instanceof Element) ensure(root);
+        for (const element of root.querySelectorAll?.('*') || []) ensure(element);
+        for (const template of root.querySelectorAll?.('template') || []) {
+            visit(template.content);
+        }
+    };
+    const instrumentFrame = frame => {
+        const install = () => {
+            try {
+                const frameDocument = frame.contentDocument;
+                if (!frameDocument || frame.contentWindow.__benchmarkNodeKeys) return;
+                const script = frameDocument.createElement('script');
+                script.textContent = source;
+                (frameDocument.head || frameDocument.documentElement).prepend(script);
+            } catch {
+                // Cross-origin frames are outside the supported instrumentation scope.
+            }
+        };
+        frame.addEventListener('load', install);
+        queueMicrotask(install);
+    };
+    const observeRoot = root => {
+        observer.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: [attributeName],
+        });
+        visit(root);
+        for (const frame of root.querySelectorAll?.('iframe') || []) instrumentFrame(frame);
+    };
+    const observer = new MutationObserver(records => {
+        pending += 1;
+        try {
+            for (const record of records) {
+                if (record.type === 'attributes') {
+                    ensure(record.target);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    visit(node);
+                    if (node.matches('iframe')) instrumentFrame(node);
+                    for (const frame of node.querySelectorAll('iframe')) instrumentFrame(frame);
+                }
+            }
+        } finally {
+            pending -= 1;
+        }
+    });
+
+    const originalAttachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+        visit(document);
+        const root = originalAttachShadow.call(this, init);
+        if (init?.mode === 'open') observeRoot(root);
+        return root;
+    };
+
+    let staticCounter = 0;
+    for (const element of document.querySelectorAll('*')) {
+        const existing = element.getAttribute(attributeName);
+        if (valid(existing) && !owners.has(existing)) {
+            write(element, existing);
+        } else if (!existing) {
+            write(element, 's' + (++staticCounter));
+        } else {
+            ensure(element);
+        }
+    }
+    observeRoot(document);
+
+    window.__benchmarkNodeKeys = Object.freeze({
+        scheme,
+        attributeName,
+        keyFor: element => ensure(element),
+        async whenSettled() {
+            do {
+                await Promise.resolve();
+                await new Promise(resolve => setTimeout(resolve, 0));
+            } while (pending);
+        },
+    });
+})();</script>
+        <meta charset="utf-8" data-node-key="s4"><meta name="benchmark-ref" content="2a0e30ced24091df1e48aa894f4da3ee114071b8" data-node-key="s5">
+        <title data-node-key="s6">Live Region Examples</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-node-key="s7">
+        <link href="../assets/style.css" rel="stylesheet" data-node-key="s8">
+    </head>
+    <body data-node-key="s9">
+        <header data-node-key="s10">
+            <a href="../../" data-node-key="s11">Index of test cases</a>
+        </header>
+        <main data-node-key="s12">
+            <hgroup data-node-key="s13">
+                <h1 data-node-key="s14">Live Region Examples</h1>
+                
+                
+            </hgroup>
+
+            <section class="tc-block" data-node-key="s15">
+                <h2 data-node-key="s16">Dynamic message per radio selection</h2>
+                <div class="a11y-directions" data-node-key="s17">Change the currently selected radio button</div>
+                <div class="test-case" data-node-key="s18">
+                    <div class="notify" data-node-key="s19">
+                        <p data-node-key="s20">
+                            <span id="init" data-node-key="s21">Internet setup will take only a few minutes. The automated process
+                                will default to settings optimized for reduced power
+                                consumption.</span>
+                            <span hidden="" id="secondary" data-node-key="s22">Internet setup will take only a few minutes. <br data-node-key="s23">The manual setup
+                                allows for greater setting customization.</span>
+                        </p>
+                    </div>
+                    <fieldset data-node-key="s24">
+                        <legend data-node-key="s25">Internet Setup</legend>
+                        <div data-node-key="s26">
+                            <label data-node-key="s27">
+                                <input type="radio" name="r" id="r1" checked="" data-node-key="s28"> Automatic</label>
+                        </div>
+                        <div data-node-key="s29">
+                            <label data-node-key="s30"> <input type="radio" name="r" id="r2" data-node-key="s31"> Manual</label>
+                        </div>
+                    </fieldset>
+
+                    <script data-node-key="s32">
+                        document.querySelectorAll('input[name="r"]').forEach(function (radio) {
+                            radio.addEventListener('change', function () {
+                                var init = document.getElementById('init');
+                                var secondary = document.getElementById('secondary');
+                                if (document.getElementById('r1').checked) {
+                                    init.removeAttribute('hidden');
+                                    secondary.setAttribute('hidden', '');
+                                } else {
+                                    init.setAttribute('hidden', '');
+                                    secondary.removeAttribute('hidden');
+                                }
+                            });
+                        });
+                    </script>
+                </div>
+                
+            </section>
+
+            <section class="tc-block" data-node-key="s33">
+                <h2 data-node-key="s34">Inject message as needed</h2>
+                <div class="a11y-directions" data-node-key="s35">Activate the button to render a message</div>
+                <div class="test-case" data-node-key="s36">
+                    <div data-node-key="s37">
+                        <button class="approve-btn" data-node-key="s38">Approve changes</button>
+                    </div>
+
+                    <script data-node-key="s39">
+                        const btnApprove = document.querySelector('.approve-btn');
+
+                        btnApprove.addEventListener('click', () => {
+                            btnApprove.nextElementSibling?.remove();
+
+                            const msg = document.createElement('div');
+                            msg.setAttribute('role', 'status');
+                            msg.textContent = 'Approval submitted!';
+                            btnApprove.insertAdjacentElement('afterend', msg);
+                        });
+                    </script>
+                </div>
+                
+            </section>
+
+            <section class="tc-block" data-node-key="s40">
+                <h2 data-node-key="s41">Form Validation Example</h2>
+                <div class="a11y-directions" data-node-key="s42">
+                    Attempt to submit the form with empty or fields with erroneous data.
+                </div>
+                <div class="test-case" data-node-key="s43">
+                    <form id="reg-form" novalidate="" data-node-key="s44">
+                        <p data-node-key="s45">All fields are required</p>
+                        <div class="finput" data-node-key="s46">
+                            <label for="username" data-node-key="s47">Username</label>
+                            <input type="text" id="username" autocomplete="username" required="" aria-describedby="un-instructions" data-node-key="s48">
+                            <div id="un-instructions" class="instructions" data-node-key="s49">
+                                Use alphanumeric characters only.
+                            </div>
+                        </div>
+                        <div class="finput" data-node-key="s50">
+                            <label for="email" data-node-key="s51">Email</label>
+                            <input type="email" id="email" autocomplete="email" required="" data-node-key="s52">
+                        </div>
+                        <div class="finput" data-node-key="s53">
+                            <label for="phone" data-node-key="s54">Phone number</label>
+                            <input type="tel" id="phone" autocomplete="tel" required="" placeholder="e.g., 555-555-5555" data-node-key="s55">
+                            <div id="pn-instructions" class="instructions" data-node-key="s56"></div>
+                        </div>
+                        <div class="finput" data-node-key="s57">
+                            <div style="display: flex" data-node-key="s58">
+                                <label for="password" data-node-key="s59">Create password</label>
+                                <div data-node-key="s60">
+                                    <button class="info-btn" aria-label="info: password requirements" popovertarget="tt" type="button" data-node-key="s61">
+                                        i
+                                    </button>
+                                </div>
+                            </div>
+                            <div role="tooltip" id="tt" popover="" data-node-key="s62">
+                                Passwords must...
+                                <ul data-node-key="s63">
+                                    <li data-node-key="s64">be at least 5 characters long</li>
+                                    <li data-node-key="s65">contain at least one capital letter</li>
+                                    <li data-node-key="s66">contain at least one number</li>
+                                    <li data-node-key="s67">
+                                        contain at least one special character (!, &gt;, /, ?, etc.)
+                                    </li>
+                                </ul>
+                            </div>
+                            <input type="password" id="password" autocomplete="new-password" required="" data-node-key="s68">
+                        </div>
+                        <div id="form-status" data-node-key="s69"></div>
+                        <div class="outro" data-node-key="s70">
+                            <button type="reset" data-node-key="s71">Reset</button>
+                            <button type="submit" data-node-key="s72">Submit</button>
+                        </div>
+                    </form>
+
+                    <style data-node-key="s73">
+                        #reg-form input,
+                        #reg-form button {
+                            font: inherit;
+                        }
+
+                        #reg-form .finput {
+                            padding: 0.325em 0;
+                        }
+
+                        #reg-form .instructions {
+                            font-size: 0.9em;
+                        }
+
+                        #reg-form label {
+                            display: block;
+                            margin-bottom: 0.125em;
+                        }
+
+                        #reg-form input {
+                            padding: 0.25em;
+                            border-radius: 2px;
+                            border-color: #777;
+                            margin-bottom: 0.25em;
+                        }
+
+                        #reg-form #form-status:empty {
+                            display: none;
+                        }
+
+                        #reg-form #form-status {
+                            padding: 0.5em;
+                            margin-top: 1em;
+                        }
+
+                        #reg-form .outro {
+                            padding: 0.5em;
+                            background: lightgrey;
+                            text-align: center;
+                            margin-top: 1em;
+                        }
+
+                        #reg-form .info-btn {
+                            border-radius: 100%;
+                            background: blue;
+                            color: white;
+                            font-weight: bold;
+                            font-size: 0.75rem;
+                            border: 1px solid rgb(0, 0, 184);
+                            margin-left: 1em;
+                        }
+
+                        #reg-form .outro button {
+                            padding: 0.5em 1em;
+                            margin: 0.5em;
+                            border-radius: 0.625em;
+                        }
+
+                        #reg-form *:focus {
+                            outline: 2px solid darkblue;
+                            outline-offset: 2px;
+                        }
+
+                        #reg-form input[aria-invalid='true'] {
+                            border-color: red;
+                        }
+
+                        #reg-form .field-error {
+                            color: darkred;
+                            margin: 0.25em 0;
+                        }
+
+                        .info-btn {
+                            anchor-name: --info-btn;
+                            position: relative;
+                            z-index: 2;
+                            top: -2px;
+                        }
+
+                        #tt {
+                            position-anchor: --info-btn;
+                            inset: unset;
+                            top: anchor(bottom);
+                            left: anchor(right);
+                            margin-top: 4px;
+                        }
+                    </style>
+
+                    <script data-node-key="s74">
+                        (function () {
+                            const form = document.getElementById('reg-form');
+                            const infoBtn = form.querySelector('.info-btn');
+                            const popover = document.getElementById('tt');
+
+                            infoBtn.addEventListener('blur', function () {
+                                if (popover.matches(':popover-open')) {
+                                    popover.hidePopover();
+                                }
+                            });
+
+                            function getErrorId(field) {
+                                return field.id + '-error';
+                            }
+
+                            function addErrorToDescribedby(field, errorId) {
+                                const current = field.getAttribute('aria-describedby');
+                                if (!current) {
+                                    field.setAttribute('aria-describedby', errorId);
+                                } else {
+                                    const ids = current.split(/\s+/).filter(function (id) {
+                                        return id !== errorId;
+                                    });
+                                    ids.unshift(errorId);
+                                    field.setAttribute('aria-describedby', ids.join(' '));
+                                }
+                            }
+
+                            function removeErrorFromDescribedby(field, errorId) {
+                                const current = field.getAttribute('aria-describedby');
+                                if (!current) return;
+                                const ids = current.split(/\s+/).filter(function (id) {
+                                    return id !== errorId;
+                                });
+                                if (ids.length) {
+                                    field.setAttribute('aria-describedby', ids.join(' '));
+                                } else {
+                                    field.removeAttribute('aria-describedby');
+                                }
+                            }
+
+                            function clearError(field) {
+                                field.removeAttribute('aria-invalid');
+                                const errorId = getErrorId(field);
+                                const existing = document.getElementById(errorId);
+                                if (existing) existing.style.display = 'none';
+                                removeErrorFromDescribedby(field, errorId);
+                            }
+
+                            function setError(field, message) {
+                                field.setAttribute('aria-invalid', 'true');
+                                const errorId = getErrorId(field);
+                                let err = document.getElementById(errorId);
+                                if (err) {
+                                    err.innerHTML = '<strong>Error:</strong> ' + message;
+                                    err.style.display = '';
+                                } else {
+                                    err = document.createElement('div');
+                                    err.id = errorId;
+                                    err.className = 'field-error';
+                                    err.innerHTML = '<strong>Error:</strong> ' + message;
+                                    field.insertAdjacentElement('afterend', err);
+                                }
+                                addErrorToDescribedby(field, errorId);
+                            }
+
+                            function validateUsername(field) {
+                                const val = field.value.trim();
+                                if (!val) return 'A username must be created.';
+                                if (!/^[a-zA-Z0-9]+$/.test(val))
+                                    return 'Username must contain only letters and numbers.';
+                                return null;
+                            }
+
+                            function validateEmail(field) {
+                                const val = field.value.trim();
+                                if (!val) return 'Email cannot be blank.';
+                                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val))
+                                    return 'Please enter a valid email address.';
+                                return null;
+                            }
+
+                            function validatePhone(field) {
+                                const val = field.value.trim();
+                                if (!val) return 'Phone number cannot be blank.';
+                                let digits = val.replace(/[^\d]/g, '');
+                                if (digits.length === 11 && digits.charAt(0) === '1')
+                                    digits = digits.substring(1);
+                                if (digits.length !== 10)
+                                    return 'Please enter a valid 10-digit US phone number.';
+                                return null;
+                            }
+
+                            function validatePassword(field) {
+                                const val = field.value;
+                                if (!val) return 'A password must be created.';
+                                if (val.length < 5)
+                                    return 'Password must be at least 5 characters long.';
+                                if (!/[A-Z]/.test(val))
+                                    return 'Password must contain at least one capital letter.';
+                                if (!/[0-9]/.test(val))
+                                    return 'Password must contain at least one number.';
+                                if (!/[^a-zA-Z0-9]/.test(val))
+                                    return 'Password must contain at least one special character.';
+                                return null;
+                            }
+
+                            const validators = {
+                                username: validateUsername,
+                                email: validateEmail,
+                                phone: validatePhone,
+                                password: validatePassword,
+                            };
+
+                            const formStatus = document.getElementById('form-status');
+
+                            function setFormStatus(message) {
+                                formStatus.textContent = message;
+                            }
+
+                            function clearFormStatus() {
+                                formStatus.textContent = '';
+                            }
+
+                            form.addEventListener('submit', function (e) {
+                                e.preventDefault();
+                                let errorCount = 0;
+
+                                Object.keys(validators).forEach(function (id) {
+                                    const field = document.getElementById(id);
+                                    const error = validators[id](field);
+                                    if (error) {
+                                        setError(field, error);
+                                        errorCount++;
+                                    } else {
+                                        clearError(field);
+                                    }
+                                });
+
+                                if (errorCount > 0) {
+                                    setFormStatus(
+                                        'Cannot submit. Please correct the ' +
+                                            errorCount +
+                                            (errorCount === 1 ? ' error' : ' errors') +
+                                            ' with this form.',
+                                    );
+                                } else {
+                                    clearFormStatus();
+                                    const container = form.parentNode;
+                                    form.remove();
+                                    const msg = document.createElement('p');
+                                    msg.textContent = 'Your information has been submitted';
+                                    container.appendChild(msg);
+                                }
+                            });
+
+                            form.addEventListener('reset', function () {
+                                Object.keys(validators).forEach(function (id) {
+                                    const field = document.getElementById(id);
+                                    clearError(field);
+                                });
+                                clearFormStatus();
+                                setFormStatus('All fields cleared.');
+                                setTimeout(clearFormStatus, 4000);
+                            });
+
+                            Object.keys(validators).forEach(function (id) {
+                                const field = document.getElementById(id);
+                                field.addEventListener('blur', function () {
+                                    if (field.getAttribute('aria-invalid') !== 'true') return;
+                                    const error = validators[id](field);
+                                    if (error) {
+                                        setError(field, error);
+                                    } else {
+                                        clearError(field);
+                                    }
+                                });
+                            });
+                        })();
+                    </script>
+                </div>
+                
+            </section>
+        </main>
+        <script src="../assets/script.js" data-node-key="s75"></script>
+    
+
+</body></html>
